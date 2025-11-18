@@ -1,0 +1,106 @@
+from machine import Pin, I2C
+import ssd1306
+import time
+
+time.sleep(0.5)
+
+# ------------------------------
+# LED Setup
+# ------------------------------
+led_pins = [
+    Pin(2, Pin.OUT),
+    Pin(3, Pin.OUT),
+    Pin(4, Pin.OUT),
+    Pin(5, Pin.OUT),
+    Pin(6, Pin.OUT)
+]
+
+# ------------------------------
+# Rotary Encoder Pins
+# ------------------------------
+clk = Pin(16, Pin.IN, Pin.PULL_UP)
+dt = Pin(17, Pin.IN, Pin.PULL_UP)
+sw = Pin(18, Pin.IN, Pin.PULL_UP)
+
+# ------------------------------
+# OLED Setup
+# ------------------------------
+i2c = I2C(0, scl=Pin(1), sda=Pin(0), freq=400000)
+oled = ssd1306.SSD1306_I2C(128, 64, i2c)
+
+# ------------------------------
+# Variables
+# ------------------------------
+current_led = 0
+toggle_states = [False] * 5
+last_clk = clk.value()
+
+step_count = 0          # <-- Count rotary steps
+steps_needed = 3        # <-- Change LED after 3 steps
+
+
+# ------------------------------
+# Update OLED Display
+# ------------------------------
+def update_display():
+    oled.fill(0)
+    oled.text("Selected LED:", 0, 0)
+    oled.text(str(current_led + 1), 100, 0)
+    oled.text("State:", 0, 20)
+    oled.text("ON" if toggle_states[current_led] else "OFF", 60, 20)
+    oled.show()
+
+
+# ------------------------------
+# Toggle LED
+# ------------------------------
+def toggle_led():
+    toggle_states[current_led] = not toggle_states[current_led]
+    led_pins[current_led].value(toggle_states[current_led])
+    update_display()
+
+
+# ------------------------------
+# Main Loop
+# ------------------------------
+update_display()
+
+while True:
+
+    # ----------------------------------
+    # ROTARY ENCODER WITH 3-STEP MOVING
+    # ----------------------------------
+    current_clk = clk.value()
+
+    if current_clk != last_clk:
+        time.sleep_ms(2)
+
+        if clk.value() != last_clk:
+
+            step_count += 1      # Increase step count
+
+            if step_count >= steps_needed:
+                step_count = 0   # Reset after 3 steps
+
+                # Direction detection
+                if dt.value() != current_clk:
+                    current_led = (current_led + 1) % 5
+                else:
+                    current_led = (current_led - 1) % 5
+
+                update_display()
+
+        last_clk = current_clk
+
+    # ----------------------------------
+    # Button Press (Active Low)
+    # ----------------------------------
+    if not sw.value():
+        toggle_led()
+        time.sleep(0.3)
+
+        while not sw.value():
+            pass
+
+    time.sleep(0.01)
+
